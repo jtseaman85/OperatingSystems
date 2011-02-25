@@ -1,6 +1,7 @@
 // mydu.c - Replicates the behavior of the UNIX os command du
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <dirent.h>
 #include <sys/stat.h>
@@ -22,7 +23,7 @@
  * Returns integer char value of next option found, -1 if end reached
  */
 
-int TraverseDir(char*, int, int);
+int ShowDirectory(char*, int, int);
 int IsDirectory(char*);
 int IsLink(char*);
 int IsFile(char*);
@@ -30,16 +31,15 @@ int IsFile(char*);
 int main(int argc, char **argv)
 {
 	int opt;
+	char* filepath;
 	
-	// Option flags
-	int refLinks = 0;
-	int expandDirs = 0;
+	int refLinks = 0;													// Option flags
+	int showFiles = 0;
 	
-	// Process options first
-	/*while ((opt = getopt(argc, argv, "aL")) != -1) {
+	while ((opt = getopt(argc, argv, "aL")) != -1) {					// Process options first
 		switch (opt) {
 			case 'a':
-				expandDirs = 1;
+				showFiles = 1;
 				break;
 			case 'L':
 				refLinks = 1;
@@ -47,38 +47,63 @@ int main(int argc, char **argv)
 			default:
 				break;
 		}
-	}*/
+	}
 	
-	// For now, just output results with no options
+	filepath = argv[optind];											// optind is a special var from getopt()
+	ShowDirectory(filepath,showFiles,refLinks);							// returns index of first non-option arg in argv
 	
-	TraverseDir("/home/",0,0);
 	return 0;
 }
 
-int TraverseDir(char *filePath, int aFlag,int lFlag) {                                                                                                                                    
-
-   	struct dirent *dirEntPtr;
-   	struct stat statBuffer;                                                                          
-   	DIR *dirPtr;
-                                                                     
-   	char currPath[1000];  
-	int size=0;
+/* ShowDirectory - traverses a file directory and outputs accordingly */
+int ShowDirectory(char *param, int aFlag,int lFlag) {
+	struct dirent* entry;                                                                       
+	struct stat statbuf;                                                                          
+	DIR* dir;
+    char fullpath[PATH_MAX];                                                                   
+   	char chrdir[PATH_MAX];  
+	int size = 0;
   
-	if ((dirPtr = opendir(filePath) == NULL)) {
-      perror ("Failed to open directory");
-      return 1;
-	}   
+	if ((dir = opendir(param)) == NULL) {
+		perror("Failed to open directory");
+		return 1;
+	}
+
+	while ((entry = readdir(dir))) {
+		strcpy(chrdir, "");                                                                     
+		strcat(chrdir, param);                                                                  
+		strcat(chrdir, "/");                                                                    
+		strcat(chrdir, entry->d_name);
+
+		if ((strcmp(entry->d_name, "..") == 0) || (strcmp(entry->d_name, ".") == 0)) {	// if path contains periods, skip
+			continue;
+		}
+		
+		if (IsDirectory(chrdir)) {
+			size += ShowDirectory(chrdir, aFlag, lFlag);
+			
+			stat(chrdir, &statbuf);
+			printf("%-10d",size);
+			printf("\t%s\n", chrdir);		
+		} else if (IsFile(chrdir)) {
+			stat(chrdir, &statbuf);
+			size += (int)statbuf.st_size;
+			
+			if (aFlag) {
+				printf("%-10d",(int)statbuf.st_size);
+				printf("\t%s\n", chrdir);
+			}
+		}
+	}
 	
-	//dirEntPtr = readdir(dirPtr);
-	
-	while ((closedir(dirPtr) == -1) && (errno == EINTR)) ;
-	return 0;
+	closedir(dir);
+	return size;
 }
 
 /* IsDirectory - determines if a filepath is a directory */
-int IsDirectory(char *path) {
-	struct stat statbuf;
-
+int IsDirectory(char *path) {                                                                   
+	struct stat statbuf;                                                                          
+	
 	if (stat(path, &statbuf) == -1) {
 		return 0;
 	} else {
@@ -87,8 +112,8 @@ int IsDirectory(char *path) {
 }
 
 /* IsLink - determines if a filepath is a symbolic link */
-int IsLink(char *path) {
-	struct stat statbuf;
+int IsLink(char *path) {                                                                   
+	struct stat statbuf;                                                                          
 	
 	if (lstat(path, &statbuf) == -1) {
 		return 0;
@@ -98,8 +123,8 @@ int IsLink(char *path) {
 }
 
 /* IsFile - determines if a filepath is a file */
-int IsFile(char *path) {
-	struct stat statbuf;
+int IsFile(char *path) {                                                                       
+	struct stat statbuf;                                                                          
 	
 	if (fstat(open(path,O_RDONLY), &statbuf) == -1) {
 		return 0;
