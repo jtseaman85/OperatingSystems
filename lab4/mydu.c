@@ -31,7 +31,9 @@ int IsFile(char*);
 int main(int argc, char **argv)
 {
 	int opt;
+	int size = 0;
 	char* filepath;
+	struct stat statbuf; 
 	
 	int refLinks = 0;													// Option flags
 	int showFiles = 0;
@@ -50,12 +52,19 @@ int main(int argc, char **argv)
 	}
 	
 	filepath = argv[optind];											// optind is a special var from getopt()
-	ShowDirectory(filepath,showFiles,refLinks);							// returns index of first non-option arg in argv
+	size = ShowDirectory(filepath,showFiles,refLinks);					// returns index of first non-option arg in argv
+	
+	stat(filepath, &statbuf);											// output original filepath
+	size += (int)statbuf.st_size;
+	
+	printf("%-10d", size);
+	printf("\t%s\n", filepath);
 	
 	return 0;
 }
 
-/* ShowDirectory - traverses a file directory and outputs accordingly */
+/* ShowDirectory - traverses a file directory and outputs accordingly
+ * returns: size of ALL elements inside directory */
 int ShowDirectory(char *param, int aFlag,int lFlag) {
 	struct dirent* entry;                                                                       
 	struct stat statbuf;                                                                          
@@ -63,33 +72,38 @@ int ShowDirectory(char *param, int aFlag,int lFlag) {
     char fullpath[PATH_MAX];                                                                   
    	char chrdir[PATH_MAX];  
 	int size = 0;
+	int dirSize = 0;
   
 	if ((dir = opendir(param)) == NULL) {
 		perror("Failed to open directory");
 		return 1;
 	}
 
-	while ((entry = readdir(dir))) {
-		strcpy(chrdir, "");                                                                     
-		strcat(chrdir, param);                                                                  
+	while ((entry = readdir(dir))) {									// iterate through each element in directory
+		strcpy(chrdir, "");                 							                                                    
+		strcat(chrdir, param);                                          // construct full path to read element
 		strcat(chrdir, "/");                                                                    
 		strcat(chrdir, entry->d_name);
-
-		if ((strcmp(entry->d_name, "..") == 0) || (strcmp(entry->d_name, ".") == 0)) {	// if path contains periods, skip
+		
+		if ((strcmp(entry->d_name, "..") == 0) || (strcmp(entry->d_name, ".") == 0)) {
 			continue;
 		}
 		
-		if (IsDirectory(chrdir)) {
-			size += ShowDirectory(chrdir, aFlag, lFlag);
+		if (IsDirectory(chrdir)) {										
+			dirSize = ShowDirectory(chrdir, aFlag, lFlag);				// element is a directory, goto next level first
 			
 			stat(chrdir, &statbuf);
-			printf("%-10d",size);
-			printf("\t%s\n", chrdir);		
+			dirSize += (int)statbuf.st_size;							// add size of cwd link to total
+			
+			printf("%-10d", dirSize);
+			printf("\t%s\n", chrdir);
+			
+			size += dirSize;											// must add size of this dir to running total
 		} else if (IsFile(chrdir)) {
 			stat(chrdir, &statbuf);
-			size += (int)statbuf.st_size;
+			size += (int)statbuf.st_size;								
 			
-			if (aFlag) {
+			if (aFlag) {												// output files if -a present
 				printf("%-10d",(int)statbuf.st_size);
 				printf("\t%s\n", chrdir);
 			}
