@@ -7,6 +7,12 @@
 #include <sys/types.h>
 #include <string.h>
 #include <fcntl.h>
+#include <limits.h>
+#include <errno.h>
+
+#ifndef PATH_MAX
+#define PATH_MAX 255
+#endif
 
 /* Special function below is used to process options in the command line args
  *	
@@ -16,7 +22,7 @@
  * Returns integer char value of next option found, -1 if end reached
  */
 
-void TraverseDir(char*, int, int);
+int TraverseDir(char*, int, int);
 int IsDirectory(char*);
 int IsLink(char*);
 int IsFile(char*);
@@ -30,7 +36,7 @@ int main(int argc, char **argv)
 	int expandDirs = 0;
 	
 	// Process options first
-	while ((opt = getopt(argc, argv, "aL")) != -1) {
+	/*while ((opt = getopt(argc, argv, "aL")) != -1) {
 		switch (opt) {
 			case 'a':
 				expandDirs = 1;
@@ -41,15 +47,15 @@ int main(int argc, char **argv)
 			default:
 				break;
 		}
-	}
+	}*/
 	
 	// For now, just output results with no options
-	TraverseDir("./home/jtseaman",0,0);
 	
+	TraverseDir("/home/",0,0);
 	return 0;
 }
 
-void TraverseDir(char *filePath, int aFlag,int lFlag) {                                                                                                                                    
+int TraverseDir(char *filePath, int aFlag,int lFlag) {                                                                                                                                    
 
    	struct dirent *dirEntPtr;
    	struct stat statBuffer;                                                                          
@@ -58,12 +64,15 @@ void TraverseDir(char *filePath, int aFlag,int lFlag) {
    	char currPath[1000];  
 	int size=0;
   
-	dirPtr = opendir(filePath);
+	if ((dirPtr = opendir(filePath) == NULL)) {
+      perror ("Failed to open directory");
+      return 1;
+	}   
 	
+	//dirEntPtr = readdir(dirPtr);
 	
-	
-	closedir(dirPtr);
-	return;
+	while ((closedir(dirPtr) == -1) && (errno == EINTR)) ;
+	return 0;
 }
 
 /* IsDirectory - determines if a filepath is a directory */
