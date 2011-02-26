@@ -11,17 +11,13 @@
 #include <limits.h>
 #include <errno.h>
 
-#ifndef PATH_MAX
-#define PATH_MAX 255
-#endif
-
 /* Special function below is used to process options in the command line args
- *	
- * 		int getopt(int argc, char * const argv[], const char *optstring);
- * 
- * Pass args argc and argv from main and optstring containing option chars you require
- * Returns integer char value of next option found, -1 if end reached
- */
+*
+* int getopt(int argc, char * const argv[], const char *optstring);
+*
+* Pass args argc and argv from main and optstring containing option chars you require
+* Returns integer char value of next option found, -1 if end reached
+*/
 
 int ShowDirectory(char*, int, int);
 int IsDirectory(char*);
@@ -33,12 +29,12 @@ int main(int argc, char **argv)
 	int opt;
 	int size = 0;
 	char* filepath;
-	struct stat statbuf; 
-	
-	int refLinks = 0;													// Option flags
+	struct stat statbuf;
+
+	int refLinks = 0; 													// Option flags
 	int showFiles = 0;
-	
-	while ((opt = getopt(argc, argv, "aL")) != -1) {					// Process options first
+
+	while ((opt = getopt(argc, argv, "aL")) != -1) { 					// Process options first
 		switch (opt) {
 			case 'a':
 				showFiles = 1;
@@ -50,74 +46,80 @@ int main(int argc, char **argv)
 				break;
 		}
 	}
-	
-	filepath = argv[optind];											// optind is a special var from getopt()
-	size = ShowDirectory(filepath,showFiles,refLinks);					// returns index of first non-option arg in argv
-	
-	stat(filepath, &statbuf);											// output original filepath
+
+	filepath = argv[optind]; 											// optind is a special var from getopt()
+	size = ShowDirectory(filepath,showFiles,refLinks); 					// returns index of first non-option arg in argv
+
+	stat(filepath, &statbuf); 											// output original filepath
 	size += (int)statbuf.st_size;
-	
+
 	printf("%-10d", size);
 	printf("\t%s\n", filepath);
-	
+
 	return 0;
 }
 
 /* ShowDirectory - traverses a file directory and outputs accordingly
- * returns: size of ALL elements inside directory */
+* returns: size of ALL elements inside directory */
 int ShowDirectory(char *param, int aFlag,int lFlag) {
-	struct dirent* entry;                                                                       
-	struct stat statbuf;                                                                          
+	struct dirent* entry;
+	struct stat statbuf;
 	DIR* dir;
-    char fullpath[PATH_MAX];                                                                   
-   	char chrdir[PATH_MAX];  
+	char fullpath[1024];
+	char chrdir[1024];
 	int size = 0;
 	int dirSize = 0;
-  
+	  
 	if ((dir = opendir(param)) == NULL) {
 		perror("Failed to open directory");
 		return 1;
 	}
 
-	while ((entry = readdir(dir))) {									// iterate through each element in directory
-		strcpy(chrdir, "");                 							                                                    
-		strcat(chrdir, param);                                          // construct full path to read element
-		strcat(chrdir, "/");                                                                    
+	while ((entry = readdir(dir))) { 									// iterate through each element in directory
+		strcpy(chrdir, "");
+		strcat(chrdir, param); 											// construct full path to read element
+		strcat(chrdir, "/");
 		strcat(chrdir, entry->d_name);
-		
+
 		if ((strcmp(entry->d_name, "..") == 0) || (strcmp(entry->d_name, ".") == 0)) {
 			continue;
 		}
-		
-		if (IsDirectory(chrdir)) {										
-			dirSize = ShowDirectory(chrdir, aFlag, lFlag);				// element is a directory, goto next level first
-			
+
+		if (IsDirectory(chrdir)) {
+			dirSize = ShowDirectory(chrdir, aFlag, lFlag); 				// element is a directory, goto next level first
+
 			stat(chrdir, &statbuf);
-			dirSize += (int)statbuf.st_size;							// add size of cwd link to total
-			
+			dirSize += (int)statbuf.st_size; 							// add size of cwd link to total
+
 			printf("%-10d", dirSize);
 			printf("\t%s\n", chrdir);
-			
-			size += dirSize;											// must add size of this dir to running total
+
+			size += dirSize; 											// must add size of this dir to running total	
 		} else if (IsFile(chrdir)) {
-			stat(chrdir, &statbuf);
-			size += (int)statbuf.st_size;								
 			
-			if (aFlag) {												// output files if -a present
+			if (IsLink(chrdir) && !lFlag) {								// handles the -L option
+				lstat(chrdir, &statbuf);
+			} else {
+				stat(chrdir, &statbuf);									
+			}
+			
+			size += (int)statbuf.st_size;
+
+			if (aFlag) { 												// handles the -a option
 				printf("%-10d",(int)statbuf.st_size);
 				printf("\t%s\n", chrdir);
 			}
 		}
 	}
-	
+
 	closedir(dir);
 	return size;
 }
 
 /* IsDirectory - determines if a filepath is a directory */
-int IsDirectory(char *path) {                                                                   
-	struct stat statbuf;                                                                          
-	
+int IsDirectory(char *path) {
+	struct stat statbuf;
+
 	if (stat(path, &statbuf) == -1) {
 		return 0;
 	} else {
@@ -126,9 +128,9 @@ int IsDirectory(char *path) {
 }
 
 /* IsLink - determines if a filepath is a symbolic link */
-int IsLink(char *path) {                                                                   
-	struct stat statbuf;                                                                          
-	
+int IsLink(char *path) {
+	struct stat statbuf;
+
 	if (lstat(path, &statbuf) == -1) {
 		return 0;
 	} else {
@@ -137,9 +139,9 @@ int IsLink(char *path) {
 }
 
 /* IsFile - determines if a filepath is a file */
-int IsFile(char *path) {                                                                       
-	struct stat statbuf;                                                                          
-	
+int IsFile(char *path) {
+	struct stat statbuf;
+
 	if (fstat(open(path,O_RDONLY), &statbuf) == -1) {
 		return 0;
 	} else {
