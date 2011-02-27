@@ -11,7 +11,8 @@
 #include <limits.h>
 #include <errno.h>
 
-/* Special function below is used to process options in the command line args
+/* 
+* Special function below is used to process options in the command line args
 *
 * int getopt(int argc, char * const argv[], const char *optstring);
 *
@@ -46,9 +47,14 @@ int main(int argc, char **argv)
 				break;
 		}
 	}
+	
+	if (optind == argc) {												// no filepath was specified as an arg
+		filepath = ".";
+	} else {
+		filepath = argv[optind]; 
+	}
 
-	filepath = argv[optind]; 											// optind is a special var from getopt()
-	size = ShowDirectory(filepath,showFiles,refLinks); 					// returns index of first non-option arg in argv
+	size = ShowDirectory(filepath, showFiles, refLinks);				// returns index of first non-option arg in argv
 
 	stat(filepath, &statbuf); 											// output original filepath
 	size += (int)statbuf.st_size;
@@ -69,7 +75,7 @@ int ShowDirectory(char *param, int aFlag,int lFlag) {
 	char chrdir[1024];
 	int size = 0;
 	int dirSize = 0;
-	  
+	 
 	if ((dir = opendir(param)) == NULL) {
 		perror("Failed to open directory");
 		return 1;
@@ -86,7 +92,7 @@ int ShowDirectory(char *param, int aFlag,int lFlag) {
 		}
 
 		if (IsDirectory(chrdir)) {
-			dirSize = ShowDirectory(chrdir, aFlag, lFlag); 				// element is a directory, goto next level first
+			dirSize = ShowDirectory(chrdir, aFlag, lFlag);				// element is a directory, goto next level first
 
 			stat(chrdir, &statbuf);
 			dirSize += (int)statbuf.st_size; 							// add size of cwd link to total
