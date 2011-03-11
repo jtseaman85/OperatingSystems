@@ -8,13 +8,15 @@
 #include "restart.c"
 #define FIFO_PERMS (S_IRWXU | S_IWGRP| S_IWOTH)
 
-// Updated: March 9, 2011
+// Updated: March 10, 2011
 
 int main (int argc, char *argv[]) {
 	FILE* pipe = NULL;
 	char reqName[1024];
 	char relName[1024];
 	int i;
+	int requestfd;
+	int releasefd;
 	int x;
 	int n = atoi(argv[2]);
 	char buffer[n];
@@ -48,52 +50,46 @@ int main (int argc, char *argv[]) {
 	
 		// open a read/write communication endpoint to the pipe
 		fprintf(stderr, "Server opening %s\n", reqName); 
-		if (!(pipe = fopen(reqName, "r"))) {
-			perror("Server failed to open its request FIFO\n");
+		if ((requestfd = open(reqName, O_RDONLY)) == -1) {
+			perror("Server failed to open its request FIFO");
 			return 1;
 		}
 		
 		fprintf(stderr, "Server reading from %s\n", reqName); 
-		for (x = 0; x < n; x++) {
-			
-			if ((buffer[x] = fgetc(pipe)) == EOF) {
-				perror("Sever failed to read character\n");
-				return 1;
-			}
+
+		if (read(requestfd, buffer, sizeof(buffer)) < 0) {
+			perror("Sever failed to read character\n");
+			return 1;
 		}
+
 		fprintf(stderr, "Server read successfully from pipe\n");
 		
 		fprintf(stderr, "Server closing %s\n", reqName);
-		fclose(pipe);
+		close(requestfd);
+		
+		pipe = NULL;
 		
 		fprintf(stderr, "Server opening %s\n", relName);
-		if (!(pipe = fopen(relName, "r+"))) {
+		if ((releasefd = open(relName, O_WRONLY)) == -1) {
 			perror("Server failed to open its release FIFO\n");
 			return 1;
 		}
 		
 		fprintf(stderr, "Server writing to %s\n", relName); 
-		for (x = 0; x < n; x++) {
 		
-			if (fputc(buffer[x],pipe) == EOF) {
-				perror("Server failed to write character\n");
-				return 1;
-			} 
+		if (write(releasefd, buffer, sizeof(buffer)) < 0) {
+			perror("Sever failed to read character\n");
+			return 1;
 		}
+		
 		fprintf(stderr, "Server wrote successfully to pipe\n");
 		
 		fprintf(stderr, "Server closing %s\n", relName);
-		fclose(pipe);
+		close(releasefd);
+		
+		pipe = NULL;
 	}
 	
-	if (unlink(relName) == -1) {
-		perror("Failed to remove FIFO\n");
-	}
-	
-	if (unlink(reqName) == -1) {
-		perror("Failed to remove FIFO\n");
-	}
-	
-	fprintf(stderr, "FIFOs removed, server closing\n");
+	fprintf(stderr, "Server closing\n");
 	return 0; 
 }
