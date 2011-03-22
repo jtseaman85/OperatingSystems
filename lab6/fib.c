@@ -6,6 +6,18 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+int numdigits(int n)
+{
+	int count = 1;
+	while(n != 0)
+	{
+		n /= 10;
+		++count;
+	}
+	return count;
+}
+
+
 int main(int argc, char **argv)
 {
 	pid_t childpid;             /* indicates process should spawn another     */
@@ -13,13 +25,14 @@ int main(int argc, char **argv)
 	int fd[2];                  /* file descriptors returned by pipe          */
 	int i;                      /* number of this process (starting with 1)   */
 	int nprocs;                 /* total number of processes in ring          */ 
-	char str[4] = "1 1";
+	char* str = (char*) malloc(4);
 	char* strcopy;
-	char* val;
-	int myfd;
+	int newSize = 0;
 	int isLast = 0;
 	int x = 0;
 	int y = 0;
+	
+	strcpy(str, "1 1");
 	
 	/* check command line for a valid number of processes to generate */
 	if ( (argc != 2) || ((nprocs = atoi (argv[1])) <= 0) ) {
@@ -73,7 +86,7 @@ int main(int argc, char **argv)
 				return 1;
 			}
 			
-			strcopy = (char*) malloc(strlen(str)+1);
+			strcopy = (char*) malloc(strlen(str)+2);
 			strcpy(strcopy, str);
 			
 			strcopy = strtok(strcopy, " ");
@@ -82,12 +95,16 @@ int main(int argc, char **argv)
 			strcopy = strtok(NULL, "");
 			y = atoi(strcopy);
 			
+			newSize = 0;
+			
 			x = x + y;
+			newSize += numdigits(x);
+			
 			y = x + y;
+			newSize += numdigits(y);
 			
+			str = (char*) malloc(newSize + 2);
 			sprintf(str, "%d %d", x, y);
-			
-			free(strcopy);
 		}
 		if (error == -1) {
 			fprintf(stderr, "[%ld]:failed to dup pipes for iteration %d: %s\n", (long)getpid(), i, strerror(errno));
@@ -114,6 +131,10 @@ int main(int argc, char **argv)
 		fprintf(stderr, " %s ", str);
 	}
 	
-	while(wait(NULL) > 0);
+	free(str);
+	
+	wait(NULL);
 	return 0; 
 }
+
+
