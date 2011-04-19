@@ -43,39 +43,41 @@ void showJobs() {
 	exit(1);
 }
 
-int add(pid_t pgid, char*cmd, job_status_t status) {
+int add(pid_t pgid, char *cmd, job_status_t status) {
 
 	joblist_t *job = malloc(sizeof(joblist_t));
 
 	if (status != FOREGROUND && status != BACKGROUND && status != STOPPED) {
 		job->cmdstring = malloc(sizeof(char) * (strlen(cmd) + 1));
-	}
-	strcpy(job->cmdstring,cmd);
 	
-	job->job = getNextJobNum() + 1;
-	job->jobstat = status;
-	job->next = NULL;
+		strcpy(job->cmdstring,cmd);
 	
-	/* Add the job to the list */
-	if (jobHead == NULL) {
-		// Handles empty list
-		jobHead = job;
-		jobTail = jobHead;
-	} else {
-		jobTail->next = job;
-		jobTail = job;
+		job->job = getMaxJobNum() + 1;
+		job->jobstat = status;
+		job->next = NULL;
+		
+		/* Add the job to the list */
+		if (jobHead == NULL) {
+			// Handles empty list
+			jobHead = job;
+			jobTail = jobHead;
+		} else {
+			jobTail->next = job;
+			jobTail = job;
+		}
 	}
-	return 0;
+	return 1;
 }
 
-int getNextJobNum() {
+int getMaxJobNum() {
 	joblist_t *job = jobHead;
 	int num = 0;
+	
 	while(job != NULL) {
 		if(job->job > num) {
 			num = job->job;
 		}
 		job = job->next;
 	}
-	return (num + 1);
+	return num;
 }

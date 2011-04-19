@@ -9,7 +9,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
-#include "joblist.c"
 #define FFLAG (O_WRONLY | O_CREAT | O_TRUNC)
 #define FMODE (S_IRUSR | S_IWUSR)
 #define BACK_SYMBOL '&'
@@ -23,6 +22,8 @@ int parseandredirectout(char *s);
 int signalsetup(struct sigaction *def, sigset_t *mask, void (*handler)(int));
 static sigjmp_buf jumptoprompt;
 static volatile sig_atomic_t okaytojump = 0;
+
+#include "joblist.c"
 
 /* ARGSUSED */
 static void jumphd(int signalnum) {
@@ -51,39 +52,53 @@ int main (void) {
 			continue;
 		}
 		okaytojump = 1;
-		//printf("%d",(int)getpid());
-		if (fputs(PROMPT_STRING, stdout) == EOF) {
+		printf("%d ",(int)getpid());
+
+		if (fputs(PROMPT_STRING, stdout) == EOF) {						/* Output command line prompt */
 			continue;
 		}
-		if (fgets(inbuf, MAX_CANON, stdin) == NULL) {
+		
+		if (fgets(inbuf, MAX_CANON, stdin) == NULL) {					/* Block for input from user */
 			continue;
 		}
+		
 		len = strlen(inbuf);
-		if (inbuf[len - 1] == '\n') {
+		if (inbuf[len - 1] == '\n') {									/* Handle empty command line */
 			inbuf[len - 1] = 0;
 		}
-		if (strcmp(inbuf, QUIT_STRING) == 0) {
+		
+		if (strcmp(inbuf, QUIT_STRING) == 0) {							/* Handle special command to quit */
 			break;
 		}
-		if ((backp = strchr(inbuf, BACK_SYMBOL)) == NULL) {
+		
+		if ((backp = strchr(inbuf, BACK_SYMBOL)) == NULL) {				/* Check for background special char */
 			inbackground = 0;
 		} else {
 			inbackground = 1; 
 			*backp = 0;
 		}
-		if (sigprocmask(SIG_BLOCK, &blockmask, NULL) == -1) {
+		
+		if (sigprocmask(SIG_BLOCK, &blockmask, NULL) == -1) {			/* Set signal mask for current shell */
 			perror("Failed to block signals");
 		}
-		if ((childpid = fork()) == -1) {
+		
+		if ((childpid = fork()) == -1) {								/* Fork a child process */
 			perror("Failed to fork");
 		} else if (childpid == 0) {
-			if (inbackground && (setpgid(0, 0) == -1)) {
+			if (inbackground && (setpgid(0, 0) == -1)) {				/* If background process, child places itself in a new process grp w/ itself as leader */
 				return 1;
 			}
 			if ((sigaction(SIGINT, &defhandler, NULL) == -1) || (sigaction(SIGQUIT, &defhandler, NULL) == -1) || (sigprocmask(SIG_UNBLOCK, &blockmask, NULL) == -1)) {
 				perror("Failed to set signal handling for command "); 
 				return 1; 
 			}
+			//fprintf(stderr, "Got past setpgid and signals\n");
+			if (inbackground) {
+				add(getpgrp(), inbuf, BACKGROUND);
+			} else {
+				add(getpgrp(), inbuf, FOREGROUND);
+			}
+			//fprintf(stderr, "Got past add job\n");
 			executecmd(inbuf);
 			return 1;
 		}
@@ -100,16 +115,19 @@ int main (void) {
 
 void executecmd(char *incmd) {
 	char **chargv;
+	job_status_t status;
+	
 	if (parseandredirectout(incmd) == -1) {
 		perror("Failed to redirect output");
 	} else if (parseandredirectin(incmd) == -1) {
 		perror("Failed to redirect input");
 	} else if (makeargv(incmd, " \t", &chargv) <= 0) {
 		fprintf(stderr, "Failed to parse command line\n");
-	} else if (strcmp(chargv[0], "jobs") == 0) {
+	} else if (strcmp(incmd, "jobs") == 0) {
+		//fprintf(stderr, "Detected jobs cmd\n");
 		showJobs();
 	} else {
-		add(getpgid(), chargv[0], FOREGROUND);
+		//fprintf(stderr, "Starting exec\n");
 		execvp(chargv[0], chargv);
 		perror("Failed to execute command");
 	}
